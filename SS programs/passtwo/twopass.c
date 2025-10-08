@@ -2,20 +2,21 @@
 #include <string.h>
 #include <stdlib.h>
 
+#define MAX_TEXT 60 // Max text record length in half-bytes (30 bytes)
+
 int main() {
-    int start, length, locctr, temp;
+    int start = 0, length = 0, locctr = 0, temp;
     char label[10], opcode[10], operand[10];
     char mnemonic[10], code[10];
     char symbol[10], symaddr[10];
+    char locctr_str[10];
 
-    FILE *inter, *optab, *symtab, *asml, *objc, *leng;
-
-    inter = fopen("intermediate3.txt", "r");
-    optab = fopen("optab3.txt", "r");
-    symtab = fopen("symtab3.txt", "r");
-    asml = fopen("asml.txt", "w");
-    objc = fopen("obj.txt", "w");
-    leng = fopen("length3.txt", "r");
+    FILE *inter = fopen("intermediate3.txt", "r");
+    FILE *optab = fopen("optab3.txt", "r");
+    FILE *symtab = fopen("symtab3.txt", "r");
+    FILE *asml = fopen("asml.txt", "w");
+    FILE *objc = fopen("obj.txt", "w");
+    FILE *leng = fopen("length3.txt", "r");
 
     if (!inter || !optab || !symtab || !asml || !objc || !leng) {
         printf("Error: Could not open one or more files.\n");
@@ -28,25 +29,23 @@ int main() {
     fscanf(inter, "%s %s %s", label, opcode, operand);
 
     if (strcmp(opcode, "START") == 0) {
-    //start = (int)strtol(operand, NULL, 10); // pass1 stored DECIMAL locctr
-     start = (int)strtol(operand, NULL, 16);
-        fprintf(asml, "%-6s\t%-6s\t%-6s\t%-6s\n", label, opcode, operand, "");
+        start = (int)strtol(operand, NULL, 16);
+        fprintf(asml, "%-6s\t%-6s\t%-6s\n", label, opcode, operand);
         fprintf(objc, "H^%-6s^%06X^%06X\n", label, start, length);
-        fscanf(inter, "%d %s %s %s", &locctr, label, opcode, operand);
-    } else {
-        start = 0;
+        fscanf(inter, "%s %s %s %s", locctr_str, label, opcode, operand);
+        if (strcmp(locctr_str, "*****") != 0)
+            locctr = (int)strtol(locctr_str, NULL, 16);
     }
 
-    // Text record buffer
     char textRec[500] = "";
     int textLen = 0;
-    int textStart = start;
+    int textStart = locctr;
 
     while (strcmp(opcode, "END") != 0) {
         int found = 0;
         rewind(optab);
 
-        // Search OPTAB
+        // Search OPTAB for instruction
         while (fscanf(optab, "%s %s", mnemonic, code) != EOF) {
             if (strcmp(mnemonic, opcode) == 0) {
                 found = 1;
@@ -57,37 +56,23 @@ int main() {
                     if (strcmp(symbol, operand) == 0) {
                         char objCode[20];
                         sprintf(objCode, "%s%s", code, symaddr);
-                        sprintf(textRec + strlen(textRec), "^%s", objCode);
+                        strcat(textRec, "^");
+                        strcat(textRec, objCode);
                         textLen += 3;
-                        if (textLen >= 30) {
-    fprintf(objc, "T^%06X^%02X^%s\n", textStart, textLen, textRec);
-    
-    // Reset for next text record
-    textRec[0] = '\0';
-    textLen = 0;
-    textStart = locctr;
- // new starting address
-}
-                        fprintf(asml, "%-6d\t%-6s\t%-6s\t%-6s\t%s\n",
+                        fprintf(asml, "%-6X\t%-6s\t%-6s\t%-6s\t%s\n",
                                 locctr, label, opcode, operand, objCode);
                         sym_found = 1;
                         break;
                     }
                 }
-                if (!sym_found) {
+
+                if (!sym_found) { // If symbol not found
                     char objCode[20];
                     sprintf(objCode, "%s0000", code);
-                    sprintf(textRec + strlen(textRec), "^%s", objCode);
+                    strcat(textRec, "^");
+                    strcat(textRec, objCode);
                     textLen += 3;
-                    if (textLen >= 30) {
-    fprintf(objc, "T^%06X^%02X^%s\n", textStart, textLen, textRec);
-    
-    // Reset for next text record
-    textRec[0] = '\0';
-    textLen = 0;
-    textStart = locctr; // new starting address
-}
-                    fprintf(asml, "%-6d\t%-6s\t%-6s\t%-6s\t%s\n",
+                    fprintf(asml, "%-6X\t%-6s\t%-6s\t%-6s\t%s\n",
                             locctr, label, opcode, operand, objCode);
                 }
                 break;
@@ -100,81 +85,60 @@ int main() {
                 temp = atoi(operand);
                 char objCode[20];
                 sprintf(objCode, "%06X", temp);
-                sprintf(textRec + strlen(textRec), "^%s", objCode);
+                strcat(textRec, "^");
+                strcat(textRec, objCode);
                 textLen += 3;
-                if (textLen >= 30) {
-    fprintf(objc, "T^%06X^%02X^%s\n", textStart, textLen, textRec);
-    
-    // Reset for next text record
-    textRec[0] = '\0';
-    textLen = 0;
-    textStart = locctr; // new starting address
-}
-                fprintf(asml, "%-6d\t%-6s\t%-6s\t%-6s\t%06X\n",
-                        locctr, label, opcode, operand, temp);
+                fprintf(asml, "%-6X\t%-6s\t%-6s\t%-6s\t%s\n",
+                        locctr, label, opcode, operand, objCode);
             } else if (strcmp(opcode, "BYTE") == 0) {
+                char objCode[100] = "";
                 if (operand[0] == 'C') {
-                    char objCode[100] = "";
-                    for (int i = 2; i < (int)strlen(operand) - 1; i++) {
-                        char hex[5];
+                    for (int i = 2; i < strlen(operand) - 1; i++) {
+                        char hex[3];
                         sprintf(hex, "%02X", operand[i]);
                         strcat(objCode, hex);
                     }
-                    sprintf(textRec + strlen(textRec), "^%s", objCode);
-                    textLen += (strlen(operand) - 3);
-                    if (textLen >= 30) {
-    fprintf(objc, "T^%06X^%02X^%s\n", textStart, textLen, textRec);
-    
-    // Reset for next text record
-    textRec[0] = '\0';
-    textLen = 0;
-    textStart = locctr; // new starting address = locctr; // new starting address
-}
-                    fprintf(asml, "%-6d\t%-6s\t%-6s\t%-6s\t%s\n",
-                            locctr, label, opcode, operand, objCode);
                 } else if (operand[0] == 'X') {
-                    char objCode[100] = "";
-                    for (int i = 2; i < (int)strlen(operand) - 1; i++) {
-                        char hex[5];
+                    for (int i = 2; i < strlen(operand) - 1; i++) {
+                        char hex[2];
                         sprintf(hex, "%c", operand[i]);
                         strcat(objCode, hex);
                     }
-                    sprintf(textRec + strlen(textRec), "^%s", objCode);
-                    textLen += (strlen(operand) - 3) / 2;
-                    if (textLen >= 30) {
-    fprintf(objc, "T^%06X^%02X^%s\n", textStart, textLen, textRec);
-    
-    // Reset for next text record
-    textRec[0] = '\0';
-    textLen = 0;
-    textStart  = locctr;// new starting address
-}
-                    fprintf(asml, "%-6d\t%-6s\t%-6s\t%-6s\t%s\n",
-                            locctr, label, opcode, operand, objCode);
                 }
-                else if (strcmp(opcode, "RESW") == 0 || strcmp(opcode, "RESB") == 0) {
-    if (textLen > 0) {
-        fprintf(objc, "T^%06X^%02X^%s\n", textStart, textLen, textRec);
-        textRec[0] = '\0';
-        textLen = 0;
-    }
-    fprintf(asml, "%-6s\t%-6s\t%-6s\t%-6s\n", locctr, label, opcode, operand);
-}
-            } else {
-                // RESW / RESB no object code
-                fprintf(asml, "%-6d\t%-6s\t%-6s\t%-6s\n",
-                        locctr, label, opcode, operand);
+                strcat(textRec, "^");
+                strcat(textRec, objCode);
+                textLen += strlen(objCode) / 2;
+                fprintf(asml, "%-6X\t%-6s\t%-6s\t%-6s\t%s\n",
+                        locctr, label, opcode, operand, objCode);
+            } else if (strcmp(opcode, "RESW") == 0 || strcmp(opcode, "RESB") == 0) {
+                if (textLen > 0) { // Flush existing text record
+                    fprintf(objc, "T^%06X^%02X%s\n", textStart, textLen, textRec);
+                    textRec[0] = '\0';
+                    textLen = 0;
+                }
+                fprintf(asml, "%-6X\t%-6s\t%-6s\t%-6s\n", locctr, label, opcode, operand);
             }
         }
 
-        fscanf(inter, "%d %s %s %s", &locctr, label, opcode, operand);
+        // Flush text record if max length reached
+        if (textLen >= MAX_TEXT) {
+            fprintf(objc, "T^%06X^%02X%s\n", textStart, textLen, textRec);
+            textRec[0] = '\0';
+            textLen = 0;
+            textStart = locctr + 3; // next instruction
+        }
+
+        fscanf(inter, "%s %s %s %s", locctr_str, label, opcode, operand);
+        if (strcmp(locctr_str, "*****") != 0)
+            locctr = (int)strtol(locctr_str, NULL, 16);
     }
 
     // Write final text record
-    fprintf(objc, "T^%06X^%02X%s\n", textStart, textLen, textRec);
+    if (textLen > 0)
+        fprintf(objc, "T^%06X^%02X%s\n", textStart, textLen, textRec);
 
-    // END
-    fprintf(asml, "%-6d\t%-6s\t%-6s\t%-6s\n", locctr, label, opcode, operand);
+    // END record
+    fprintf(asml, "%-6X\t%-6s\t%-6s\t%-6s\n", locctr, label, opcode, operand);
     fprintf(objc, "E^%06X\n", start);
 
     fclose(optab);

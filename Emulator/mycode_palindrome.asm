@@ -1,0 +1,56 @@
+data SEGMENT
+    MSG1 DB 10,13,'ENTER THE STRING:$'
+    MSG2 DB 10,13,' STRING is palindrom:$'
+    MSG3 DB 10,13,'STRING is not palindrom:$'
+    STR1 DB 50 DUP(0)
+data ENDS
+code SEGMENT
+ASSUME CS:code,DS:data
+START:
+    MOV AX,DATA
+    MOV DS,AX
+    
+    LEA DX,MSG1
+    MOV AH,09H
+    INT 21H
+    
+    LEA DI,STR1
+    LEA SI,STR1
+    
+    MOV AH,01H
+NEXT:
+    INT 21H
+    CMP AL,0DH
+    JE TERMINATE
+    MOV [DI],AL
+    INC DI
+    JMP NEXT
+TERMINATE:
+    MOV AL,'$'
+    MOV [DI],AL
+    DEC DI
+CHECK_LOOP:
+    MOV AL,[SI]
+    CMP AL,[DI]
+    JNE NOT_PALINDROME
+    INC SI
+    DEC DI
+    CMP SI,DI
+    JLE CHECK_LOOP
+PALINDROME:
+    
+    MOV AH,09H
+    LEA DX,MSG2
+    INT 21H
+    JMP EXIT
+NOT_PALINDROME:
+    
+    MOV AH,09H
+    LEA DX,MSG3
+    INT 21H
+EXIT:
+    MOV AH,4CH
+    INT 21H
+END START
+code ENDS
+ENDS

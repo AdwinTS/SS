@@ -1,0 +1,107 @@
+
+
+DATA SEGMENT
+    MSG1 DB 0AH,0DH,"ENTER FIRST NUMBER $" 
+    MSG2 DB 0AH,0DH,"ENTER SECOND NUMBER $" 
+    MSG3 DB 0AH,0DH,"DIFFERENCE IS $"   
+    MSG4 DB 0AH,0DH,"DIFFERENCE IS NEGATIVE $" 
+DATA ENDS
+
+CODE SEGMENT
+ASSUME DS:DATA, CS:CODE
+START:
+    MOV AX,DATA
+    MOV DS,AX
+                
+    ; INPUT FIRST NUMBER            
+    LEA DX,MSG1 
+    MOV AH,09H
+    INT 21H ; NUM1
+    
+    MOV AH,01H
+    INT 21H
+    SUB AL,30H       ; convert to number
+    MOV BH,AL
+    
+    MOV AH,01H
+    INT 21H
+    SUB AL,30H
+    MOV BL,AL
+    
+    ; INPUT SECOND NUMBER
+    LEA DX,MSG2 
+    MOV AH,09H
+    INT 21H   ; NUM2
+    
+    MOV AH,01H
+    INT 21H
+    SUB AL,30H
+    MOV CH,AL
+    
+    MOV AH,01H
+    INT 21H
+    SUB AL,30H
+    MOV CL,AL
+    
+    ; COMPARE
+    CMP BX,CX
+    JZ ZERO
+    JC NEGATIVE
+    CLC
+    
+    ; +VE DIFFERENCE
+    DIFF:
+    MOV AL,BL
+    MOV AH,00H
+    SUB AL,CL
+    AAS
+    MOV CL,AH
+    ADD AL,30H
+    MOV BL,AL ; LOW DIGIT
+    
+    MOV AL,BH
+    MOV AH,00H
+    SUB AL,CH
+    AAS
+    ADD AL,CL
+    MOV CL,AH
+    ADD AL,30H
+    MOV BH,AL ; HIGH DIGIT
+    JMP DISPO
+    
+ZERO:
+    MOV DL,'0'
+    MOV AH,02H
+    INT 21H
+    
+    MOV DL,'0'
+    MOV AH,02H
+    INT 21H
+    JMP FULL
+        
+DISPO:
+    LEA DX,MSG3
+    MOV AH,09H
+    INT 21H 
+    
+    MOV DL,BH
+    MOV AH,02H
+    INT 21H 
+    
+    MOV DL,BL
+    MOV AH,02H
+    INT 21H
+    JMP FULL
+    
+NEGATIVE:
+    LEA DX,MSG4
+    MOV AH,09H
+    INT 21H 
+    XCHG BX,CX
+    JMP DIFF
+    
+FULL:
+    MOV AH,4CH
+    INT 21H
+CODE ENDS
+END START

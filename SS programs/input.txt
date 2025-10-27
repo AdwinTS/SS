@@ -1,0 +1,6 @@
+PROG    START   1000
+        LDA     ALPHA
+        STA     BETA
+ALPHA   RESW    1
+BETA    RESW    1
+        END     PROG

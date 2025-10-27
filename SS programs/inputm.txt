@@ -1,0 +1,9 @@
+SAMPLE  START 1000
+MACRO1  MACRO &N1,&N2
+-       LDA   &N1
+-       STA   &N2
+-       MEND  -
+-       MACRO1 N3,N4
+N3      RESW  1
+N4      RESW  1
+-       END   -
